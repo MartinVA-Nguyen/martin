@@ -7,17 +7,57 @@ export default function ChatScreen() {
 
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  function sendMessage() {
-    if (!text.trim()) return;
+async function sendMessage() {
+  if (!text.trim()) return;
+
+  const userMessage = {
+    role: 'user',
+    text,
+  };
+
+  // shows user message immediately
+  setMessages((prev) => [...prev, userMessage]);
+  setText('');
+
+  // start loading
+  setLoading(true);
+
+  try {
+    const res = await fetch('n8n webhook url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: userMessage.text,
+      }),
+    });
+
+    const data = await res.json();
+
+    const botMessage = {
+      role: 'bot',
+      text: data.reply || 'No response',
+    };
+
+    setMessages((prev) => [...prev, botMessage]);
+  } catch (error) {
+    console.error(error);
 
     setMessages((prev) => [
       ...prev,
-      { id: Date.now().toString(), role: 'user', text },
+      {
+        role: 'bot',
+        text: 'Error connecting to server.',
+      },
     ]);
-
-    setText('');
+  } finally {
+    // 👇 stop loading no matter what
+    setLoading(false);
   }
+}
 
   return (
     <View style={styles.container}>
