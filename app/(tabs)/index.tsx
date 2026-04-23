@@ -1,6 +1,6 @@
 import db from '@/database';
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
+import { Link, router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type Conversation = {
@@ -12,61 +12,65 @@ type Conversation = {
 export default function HomeScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
-const createNewChat = () => {
-  const newId = Date.now().toString();
+  useFocusEffect(
+    useCallback(() => {
+      const rows = db.getAllSync(`
+        SELECT 
+          c.id,
+          c.title,
+          (
+            SELECT text 
+            FROM messages m 
+            WHERE m.conversationId = c.id 
+            ORDER BY createdAt DESC 
+            LIMIT 1
+          ) as lastMessage
+        FROM conversations c
+        ORDER BY c.id DESC
+      `);
 
-  db.runSync(
+      setConversations(rows as Conversation[]);
+    }, [])
+  );
+
+  const createNewChat = () => {
+    const newId = Date.now().toString();
     // For now, title is just id.
     // TODO: Make a function with LLM so that it produces a title based on first message, and set title to that.
-    'INSERT INTO conversations (id, title) VALUES (?, ?)',
-    [newId, newId]
-  );
+    db.runSync(
+      'INSERT INTO conversations (id, title) VALUES (?, ?)',
+      [newId, newId]
+    );
 
-  const newConversation = {
-    id: newId,
-    title: newId,
-    lastMessage: '',
+    router.push(`/chat/${newId}`);
   };
 
-  setConversations(prev => [newConversation, ...prev]);
+  const deleteConversation = (id: string) => {
+    db.runSync('DELETE FROM conversations WHERE id = ?', [id]);
+    db.runSync('DELETE FROM messages WHERE conversationId = ?', [id]);
 
-  router.push(`/chat/${newId}`);
-};
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+  };
 
-const deleteConversation = (id: string) => {
-  db.runSync(
-    'DELETE FROM conversations WHERE id = ?',
-    [id]
-  );
+  const renderItem = ({ item }: { item: Conversation }) => (
+    <View style={styles.chatRow}>
+      <Link href={`/chat/${item.id}`} asChild>
+        <Pressable style={styles.chatItem}>
+          <Text style={styles.chatTitle}>{item.title}</Text>
+          <Text style={styles.chatPreview}>
+            {item.lastMessage || 'No messages yet'}
+          </Text>
+        </Pressable>
+      </Link>
 
-  db.runSync(
-    'DELETE FROM messages WHERE conversationId = ?',
-    [id]
-  );
-
-  setConversations(prev => prev.filter(c => c.id !== id));
-};
-
-
-const renderItem = ({ item }: { item: Conversation }) => (
-  <View style={styles.chatRow}>
-    <Link href={`/chat/${item.id}`} asChild>
-      <Pressable style={styles.chatItem}>
-        <Text style={styles.chatTitle}>{item.title}</Text>
-        <Text style={styles.chatPreview}>
-          {item.lastMessage || 'No messages yet'}
-        </Text>
+      <Pressable
+        onPress={() => deleteConversation(item.id)}
+        style={styles.deleteButton}
+      >
+        <Text style={styles.deleteText}>🗑</Text>
       </Pressable>
-    </Link>
-
-    <Pressable
-      onPress={() => deleteConversation(item.id)}
-      style={styles.deleteButton}
-    >
-      <Text style={styles.deleteText}>🗑</Text>
-    </Pressable>
-  </View>
-);
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -116,16 +120,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#FF3B30',
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
-    color: '#000',
-  },
-  centerList: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
   container: {
     flex: 1,
     padding: 16,
@@ -135,12 +129,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
   },
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
   },
   emptySubtext: {
     marginTop: 6,
@@ -149,7 +141,6 @@ const styles = StyleSheet.create({
   chatTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
   },
   chatPreview: {
     color: '#666',
@@ -170,5 +161,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 26,
   },
-
+  centerList: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
 });
