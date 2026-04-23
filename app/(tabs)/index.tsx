@@ -43,7 +43,7 @@ export default function HomeScreen() {
     );
 
     router.push(`/chat/${newId}`);
-  };
+};
 
   const deleteConversation = (id: string) => {
     db.runSync('DELETE FROM conversations WHERE id = ?', [id]);
