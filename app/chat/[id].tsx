@@ -1,4 +1,4 @@
-import db, { insertMessage } from '@/database';
+import db, { getLastMessages, insertMessage } from '@/database';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -23,58 +23,67 @@ export default function ChatScreen() {
     setMessages(rows as any[]);
   }, [conversationId]);
 
-  async function sendMessage() {
-    if (!text.trim() || !conversationId) return;
+async function sendMessage() {
+  if (!text.trim() || !conversationId) return;
 
-    const userMessage = {
-      role: 'user',
-      text,
+  const userMessage = {
+    role: 'user',
+    text,
+  };
+
+  // Retrieve X amount of last sent messages. Variable. If X = 10, then 5 user, 5 bot messages.
+  const historyLimit = 10;
+  const history = getLastMessages(conversationId, historyLimit);
+
+  // show instantly
+  setMessages((prev) => [...prev, userMessage]);
+
+  // save user message
+  insertMessage(conversationId, 'user', text);
+
+  setText('');
+  setLoading(true);
+
+  // TODO: n8n webhook url
+  try {
+    const res = await fetch('n8n webhook url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          ...history,
+          userMessage, // include current message
+        ],
+      }),
+    });
+
+    if (!res.ok) throw new Error('Request failed');
+
+    const data = await res.json();
+
+    const botMessage = {
+      role: 'bot',
+      text: data.reply || 'No response',
     };
 
-    // show instantly
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, botMessage]);
 
-    // save user message
-    insertMessage(conversationId, 'user', text);
+    insertMessage(conversationId, 'bot', botMessage.text);
+  } catch (error) {
+    console.error(error);
 
-    setText('');
-    setLoading(true);
+    const errorMsg = {
+      role: 'bot',
+      text: 'Error connecting to server.',
+    };
 
-    // Need n8n webhook URL
-    try {
-      const res = await fetch('n8n webhook url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage.text }),
-      });
+    setMessages((prev) => [...prev, errorMsg]);
 
-      const data = await res.json();
-
-      const botMessage = {
-        role: 'bot',
-        text: data.reply || 'No response',
-      };
-
-      setMessages((prev) => [...prev, botMessage]);
-
-      // save bot message
-      insertMessage(conversationId, 'bot', botMessage.text);
-    } catch (error) {
-      console.error(error);
-
-      const errorMsg = {
-        role: 'bot',
-        text: 'Error connecting to server.',
-      };
-
-      setMessages((prev) => [...prev, errorMsg]);
-
-      // save error message
-      insertMessage(conversationId, 'bot', errorMsg.text);
-    } finally {
-      setLoading(false);
-    }
+    insertMessage(conversationId, 'bot', errorMsg.text);
+  } finally {
+    setLoading(false);
   }
+}
 
 return (
   <>

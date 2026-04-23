@@ -30,6 +30,7 @@ export function getLastMessages(conversationId: string, limit: number) {
     [conversationId, limit]
   );
 
+  // reverse so oldest → newest (important for LLMs)
   return result.reverse();
 }
 
