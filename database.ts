@@ -20,4 +20,16 @@ export function initDB() {
   `);
 }
 
+export function insertMessage(
+  conversationId: string,
+  role: string,
+  text: string
+) {
+  db.runSync(
+    `INSERT INTO messages (conversationId, role, text, createdAt)
+     VALUES (?, ?, ?, ?)`,
+    [conversationId, role, text, Date.now()]
+  );
+}
+
 export default db;
