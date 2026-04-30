@@ -1,4 +1,5 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { supabase } from '@/lib/supabase';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -26,6 +27,23 @@ async function registerForPushNotificationsAsync() {
   return tokenData.data;
 }
 
+async function savePushToken(token: string) {
+  const user = await supabase.auth.getUser();
+
+  const userId = user.data.user?.id;
+
+  const { error } = await supabase.from('push_tokens').upsert({
+    user_id: userId,
+    token,
+    platform: Device.osName,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.log('Error saving token:', error.message);
+  }
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -37,6 +55,7 @@ useEffect(() => {
 
     if (token) {
       console.log("Expo token:", token); // Essentially address of the phone for notifications.
+      await savePushToken(token); // Saves it to Supabase.
     }
   }
 
