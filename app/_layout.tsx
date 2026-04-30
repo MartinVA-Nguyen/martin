@@ -6,6 +6,26 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { initDB } from '../database';
 
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+
+async function registerForPushNotificationsAsync() {
+  if (!Device.isDevice) return;
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+
+  if (finalStatus !== 'granted') return;
+
+  const tokenData = await Notifications.getExpoPushTokenAsync();
+  return tokenData.data;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
